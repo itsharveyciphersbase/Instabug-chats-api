@@ -1,0 +1,58 @@
+version: '3.7'
+services:
+  mysql:
+    image: mysql:5.7.18
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_USERNAME: ruby
+      MYSQL_PASSWORD: password
+      MYSQL_DATABASE: chats_api_development
+    ports:
+      - "3306:3306"
+  
+  redis:
+    container_name: redis
+    ports:
+      - "6379:6379"
+    image: redis:5.0-rc
+  
+  elasticsearch:
+    container_name: elasticsearch
+    ports:
+      - "9200:9200"
+    image: elasticsearch:7.5.0
+    environment:
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "http.host=0.0.0.0"
+      - "transport.host=127.0.0.1"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+  
+  web: &app_base
+    build: .
+    command: /bin/sh -c "/app/entrypoint.sh"
+    environment:
+      DB_HOST: chats-api_mysql_1.chats-api_default
+      REDIS_URL: redis://redis:6379/0
+      ELASTICSEARCH_host: elasticsearch.chats-api_default
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mysql
+      - elasticsearch
+      - redis
+    
+  worker:
+    <<: *app_base
+    command: bundle exec sidekiq
+    ports: []
+    depends_on:
+      - web
